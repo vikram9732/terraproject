@@ -1,0 +1,11 @@
+vpc_name        = "clickops-vpc-qa"
+subnet_name     = "clickops-public-subnet-qa"
+sg_name         = "clickops-sg-qa"
+ec2_name        = "clickops-ec2-qa"
+iam_role_name   = "clickops-iam-role-qa"
+s3_bucket       = "clickops-s3-qa-12345"
+ecr_repo        = "clickops-ecr-qa"
+secret_name     = "clickops-sm-qa"
+
+instance_type   = "t2.micro"
+key_name        = "qa"

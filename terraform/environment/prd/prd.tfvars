@@ -1,0 +1,5 @@
+cidr_block         = "10.2.0.0/16"
+public_subnet_cidr = "10.2.1.0/24"
+ami                = "ami-0f58b397bc5c1f2e8"
+instance_type      = "t3.micro"
+role_name          = "prd-ec2-role"

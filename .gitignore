@@ -1,0 +1,28 @@
+# Terraform
+.terraform/
+**/.terraform/
+**/.terraform/**
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore binaries
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local env files
+.env

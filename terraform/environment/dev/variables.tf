@@ -1,0 +1,10 @@
+variable "vpc_name" {}
+variable "subnet_name" {}
+variable "sg_name" {}
+variable "ec2_name" {}
+variable "iam_role_name" {}
+variable "s3_bucket" {}
+variable "ecr_repo" {}
+variable "secret_name" {}
+variable "instance_type" {}
+variable "key_name" {}

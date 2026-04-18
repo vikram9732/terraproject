@@ -1,0 +1,11 @@
+vpc_name        = "clickops-vpc-dev"
+subnet_name     = "clickops-public-subnet-dev"
+sg_name         = "clickops-sg-dev"
+ec2_name        = "clickops-ec2-dev"
+iam_role_name   = "clickops-iam-role-dev"
+s3_bucket       = "clickops-s3-dev-12345"
+ecr_repo        = "clickops-ecr-dev"
+secret_name     = "clickops-sm-dev"
+
+instance_type   = "t2.micro"
+key_name        = "dev"
