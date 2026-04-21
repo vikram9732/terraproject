@@ -1,4 +1,4 @@
-n- name: Deploy to EC2 via SSH
+- name: Deploy to EC2 via SSH
   uses: appleboy/ssh-action@v1.0.3
   env:
     IMAGE_TAG: ${{ env.IMAGE_TAG }}
@@ -12,6 +12,11 @@ n- name: Deploy to EC2 via SSH
     key: ${{ secrets.EC2_SSH_KEY }}
     envs: IMAGE_TAG,AWS_REGION,ECR_REGISTRY,BACKEND_REPO,FRONTEND_REPO
     script: |
+      echo "IMAGE_TAG=$IMAGE_TAG"
+      echo "ECR_REGISTRY=$ECR_REGISTRY"
+      echo "BACKEND_REPO=$BACKEND_REPO"
+      echo "FRONTEND_REPO=$FRONTEND_REPO"
+
       aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
       docker pull $ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
