@@ -1,0 +1,83 @@
+name: App CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+      - qa
+      - main
+
+jobs:
+  deploy-app:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Build backend image
+        run: |
+          docker build -t ${{ secrets.BACKEND_REPO }}:${IMAGE_TAG} ./terraform/environment/prd/app/backend
+          docker tag ${{ secrets.BACKEND_REPO }}:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+
+      - name: Push backend image
+        run: |
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+
+      - name: Build frontend image
+        run: |
+          docker build -t ${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
+          docker tag ${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+
+      - name: Push frontend image
+        run: |
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+            docker pull ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+            docker pull ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+
+            docker stop backend-container || true
+            docker rm backend-container || true
+            docker stop frontend-container || true
+            docker rm frontend-container || true
+
+            docker network create app-network || true
+
+            docker run -d \
+              --name backend-container \
+              --network app-network \
+              -p 5000:5000 \
+              -e MONGO_URI=mongodb://mongo-container:27017/ \
+              -e MONGO_DB_NAME=clickops-db-dev \
+              -e S3_BUCKET_NAME=clickops-dev-bucket-vikram-2026-003 \
+              -e AWS_REGION=ap-south-1 \
+              ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+
+            docker run -d \
+              --name frontend-container \
+              --network app-network \
+              -p 3000:80 \
+              ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
