@@ -60,7 +60,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: IMAGE_TAG,AWS_REGION,ECR_REGISTRY,BACKEND_REPO,FRONTEND_REPO
-          script: |
+                    script: |
             echo "IMAGE_TAG=$IMAGE_TAG"
             echo "ECR_REGISTRY=$ECR_REGISTRY"
             echo "BACKEND_REPO=$BACKEND_REPO"
