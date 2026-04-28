@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - dev
-      - qa
-      - main
 
 jobs:
   deploy-app:
@@ -31,8 +29,8 @@ jobs:
 
       - name: Build backend image
         run: |
-          docker build -t ${{ secrets.BACKEND_REPO }}:${IMAGE_TAG} ./terraform/environment/prd/app/backend
-          docker tag ${{ secrets.BACKEND_REPO }}:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+          docker build -t backend:${IMAGE_TAG} ./terraform/environment/prd/app/backend
+          docker tag backend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
 
       - name: Push backend image
         run: |
@@ -40,14 +38,14 @@ jobs:
 
       - name: Build frontend image
         run: |
-          docker build -t ${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
-          docker tag ${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+          docker build -t frontend:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
+          docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
 
       - name: Push frontend image
         run: |
           docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
 
-            - name: Deploy to EC2 via SSH
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
@@ -61,18 +59,12 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: IMAGE_TAG,AWS_REGION,ECR_REGISTRY,BACKEND_REPO,FRONTEND_REPO
           script: |
-            echo "IMAGE_TAG=$IMAGE_TAG"
-            echo "ECR_REGISTRY=$ECR_REGISTRY"
-            echo "BACKEND_REPO=$BACKEND_REPO"
-            echo "FRONTEND_REPO=$FRONTEND_REPO"
+            echo "Deploy starting..."
 
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
             BACKEND_IMAGE=$ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
             FRONTEND_IMAGE=$ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
-
-            echo "BACKEND_IMAGE=$BACKEND_IMAGE"
-            echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
 
             docker pull $BACKEND_IMAGE
             docker pull $FRONTEND_IMAGE
@@ -88,10 +80,6 @@ jobs:
               --name backend-container \
               --network app-network \
               -p 5000:5000 \
-              -e MONGO_URI=mongodb://mongo-container:27017/ \
-              -e MONGO_DB_NAME=clickops-db-dev \
-              -e S3_BUCKET_NAME=clickops-dev-bucket-vikram-2026-003 \
-              -e AWS_REGION=$AWS_REGION \
               $BACKEND_IMAGE
 
             docker run -d \
