@@ -42,6 +42,7 @@ jobs:
           docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
 
       - name: Push frontend image
+        timeout-minutes: 10
         run: |
           docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
 
