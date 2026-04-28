@@ -41,10 +41,16 @@ jobs:
           docker build -t frontend:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
           docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
 
-      - name: Push frontend image
-        timeout-minutes: 10
+      - name: Push frontend image (retry + stable)
+        timeout-minutes: 15
         run: |
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+          echo "Pushing frontend image..."
+    
+           for i in 1 2 3; do
+             docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} && break
+             echo "Push failed... retrying in 15 seconds..."
+             sleep 15
+           done
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
