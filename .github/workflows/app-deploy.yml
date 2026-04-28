@@ -53,28 +53,28 @@ jobs:
            done
 
       - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           BACKEND_REPO: ${{ secrets.BACKEND_REPO }}
           FRONTEND_REPO: ${{ secrets.FRONTEND_REPO }}
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: IMAGE_TAG,AWS_REGION,ECR_REGISTRY,BACKEND_REPO,FRONTEND_REPO
-          script: |
-            echo "Deploy starting..."
+        run: |
+          mkdir -p ~/.ssh
+          printf "%s\n" "$EC2_SSH_KEY" > ~/.ssh/cicd-key
+          sed -i 's/\r$//' ~/.ssh/cicd-key
+          chmod 600 ~/.ssh/cicd-key
 
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/cicd-key $EC2_USER@$EC2_HOST "
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
             BACKEND_IMAGE=$ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
             FRONTEND_IMAGE=$ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
 
-            docker pull $BACKEND_IMAGE
-            docker pull $FRONTEND_IMAGE
+            docker pull \$BACKEND_IMAGE
+            docker pull \$FRONTEND_IMAGE
 
             docker stop backend-container || true
             docker rm backend-container || true
@@ -83,14 +83,7 @@ jobs:
 
             docker network create app-network || true
 
-            docker run -d \
-              --name backend-container \
-              --network app-network \
-              -p 5000:5000 \
-              $BACKEND_IMAGE
+            docker run -d --name backend-container --network app-network -p 5000:5000 \$BACKEND_IMAGE
 
-            docker run -d \
-              --name frontend-container \
-              --network app-network \
-              -p 3000:80 \
-              $FRONTEND_IMAGE
+            docker run -d --name frontend-container --network app-network -p 3000:80 \$FRONTEND_IMAGE
+          "
