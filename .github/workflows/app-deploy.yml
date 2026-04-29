@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - dev
+      - qa
+      - main
 
 jobs:
   deploy-app:
@@ -12,6 +14,32 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Set environment by branch
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+
+          if [ "$BRANCH" = "dev" ]; then
+            echo "ENV_NAME=dev" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_HOST_DEV }}" >> $GITHUB_ENV
+            echo "S3_BUCKET_NAME=clickops-dev-bucket-12345" >> $GITHUB_ENV
+            echo "MONGO_DB_NAME=clickops-db-dev" >> $GITHUB_ENV
+
+          elif [ "$BRANCH" = "qa" ]; then
+            echo "ENV_NAME=qa" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_HOST_QA }}" >> $GITHUB_ENV
+            echo "S3_BUCKET_NAME=clickops-qa-bucket-12345" >> $GITHUB_ENV
+            echo "MONGO_DB_NAME=clickops-db-qa" >> $GITHUB_ENV
+
+          elif [ "$BRANCH" = "main" ]; then
+            echo "ENV_NAME=prd" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_HOST_PRD }}" >> $GITHUB_ENV
+            echo "S3_BUCKET_NAME=clickops-prd-bucket-12345" >> $GITHUB_ENV
+            echo "MONGO_DB_NAME=clickops-db-prd" >> $GITHUB_ENV
+          fi
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -24,43 +52,43 @@ jobs:
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-      - name: Set image tag
-        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+      - name: Set frontend backend URL
+        run: |
+          sed -i "s|const backendUrl = .*|const backendUrl = \"http://$EC2_HOST:5000\";|g" ./terraform/environment/prd/app/frontend/index.html
 
       - name: Build backend image
         run: |
           docker build -t backend:${IMAGE_TAG} ./terraform/environment/prd/app/backend
-          docker tag backend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+          docker tag backend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
 
       - name: Push backend image
         run: |
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${IMAGE_TAG}
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
 
       - name: Build frontend image
         run: |
           docker build -t frontend:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
-          docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG}
+          docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
 
-      - name: Push frontend image (retry + stable)
+      - name: Push frontend image
         timeout-minutes: 15
         run: |
-          echo "Pushing frontend image..."
-    
-           for i in 1 2 3; do
-             docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${IMAGE_TAG} && break
-             echo "Push failed... retrying in 15 seconds..."
-             sleep 15
-           done
+          for i in 1 2 3; do
+            docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${ENV_NAME}-${IMAGE_TAG} && break
+            echo "Push failed... retrying in 15 seconds..."
+            sleep 15
+          done
 
       - name: Deploy to EC2 via SSH
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_USER: ubuntu
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           BACKEND_REPO: ${{ secrets.BACKEND_REPO }}
           FRONTEND_REPO: ${{ secrets.FRONTEND_REPO }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
         run: |
           mkdir -p ~/.ssh
           printf "%s\n" "$EC2_SSH_KEY" > ~/.ssh/cicd-key
@@ -68,22 +96,40 @@ jobs:
           chmod 600 ~/.ssh/cicd-key
 
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/cicd-key $EC2_USER@$EC2_HOST "
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            docker network create app-network || true
 
-            BACKEND_IMAGE=$ECR_REGISTRY/$BACKEND_REPO:$IMAGE_TAG
-            FRONTEND_IMAGE=$ECR_REGISTRY/$FRONTEND_REPO:$IMAGE_TAG
+            docker rm -f mongo-container || true
+            docker run -d --name mongo-container --network app-network -p 27017:27017 mongo:6
+
+            AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+            BACKEND_IMAGE=$ECR_REGISTRY/$BACKEND_REPO:$ENV_NAME-$IMAGE_TAG
+            FRONTEND_IMAGE=$ECR_REGISTRY/$FRONTEND_REPO:$ENV_NAME-$IMAGE_TAG
 
             docker pull \$BACKEND_IMAGE
             docker pull \$FRONTEND_IMAGE
 
-            docker stop backend-container || true
-            docker rm backend-container || true
-            docker stop frontend-container || true
-            docker rm frontend-container || true
+            docker rm -f backend-container || true
+            docker rm -f frontend-container || true
 
-            docker network create app-network || true
+            docker run -d \
+              --name backend-container \
+              --network app-network \
+              -p 5000:5000 \
+              -e MONGO_URL=mongodb://mongo-container:27017/ \
+              -e MONGO_URI=mongodb://mongo-container:27017/ \
+              -e MONGO_DB_NAME=$MONGO_DB_NAME \
+              -e S3_BUCKET_NAME=$S3_BUCKET_NAME \
+              -e AWS_REGION=$AWS_REGION \
+              -e AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
+              -e AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
+              \$BACKEND_IMAGE
 
-            docker run -d --name backend-container --network app-network -p 5000:5000 \$BACKEND_IMAGE
+            docker run -d \
+              --name frontend-container \
+              --network app-network \
+              -p 3000:80 \
+              \$FRONTEND_IMAGE
 
-            docker run -d --name frontend-container --network app-network -p 3000:80 \$FRONTEND_IMAGE
+            docker ps
           "
