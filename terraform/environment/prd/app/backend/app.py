@@ -13,8 +13,14 @@ CORS(app)
 mongo_url = os.getenv("MONGO_URL")
 mongo_db_name = os.getenv("MONGO_DB_NAME", "clickops-db-dev")
 
-client = MongoClient(mongo_url)
-db = client[mongo_db_name]
+import os
+from pymongo import MongoClient
+
+mongo_uri = os.getenv("MONGO_URI", "mongodb://mongo-container:27017/")
+db_name = os.getenv("MONGO_DB_NAME", "clickops-db-dev")
+
+client = MongoClient(mongo_uri)
+db = client[db_name]
 collection = db["users"]
 
 # AWS / S3

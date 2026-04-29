@@ -1,5 +1,19 @@
-variable "ami" {}
-variable "instance_type" {}
-variable "subnet_id" {}
-variable "iam_instance_profile" {}
-variable "security_group_id" {}
+variable "instance_type" {
+  type = string
+}
+
+variable "key_name" {
+  type = string
+}
+
+variable "subnet_id" {
+  type = string
+}
+
+variable "security_group_id" {
+  type = string
+}
+
+variable "ami" {
+  type = string
+}

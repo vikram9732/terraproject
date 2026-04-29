@@ -1,11 +1,23 @@
+terraform {
+  backend "s3" {
+    bucket         = "clickops-terraform-state-vikram-2026"
+    key            = "dev/terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = "clickops-terraform-locks"
+    encrypt        = true
+  }
+}
+
 provider "aws" {
-  region = "us-east-1"
+  region = "ap-south-1"
 }
 
 module "vpc" {
   source      = "../../modules/vpc"
   vpc_name    = var.vpc_name
+  cidr_block  = var.cidr_block
   subnet_name = var.subnet_name
+  public_subnet_cidr = var.public_subnet_cidr
 }
 
 resource "aws_security_group" "sg" {
@@ -40,13 +52,13 @@ module "iam" {
 }
 
 module "ec2" {
-  source               = "../../modules/ec2"
-  ec2_name             = var.ec2_name
-  instance_type        = var.instance_type
-  subnet_id            = module.vpc.subnet_id
-  sg_id                = aws_security_group.sg.id
-  key_name             = var.key_name
-  iam_instance_profile = module.iam.instance_profile
+  source = "../../modules/ec2"
+
+  ami                = "ami-0f58b397bc5c1f2e8"  # Amazon Linux (ap-south-1)
+  instance_type      = var.instance_type
+  subnet_id          = module.vpc.subnet_id
+  security_group_id  = aws_security_group.sg.id
+  key_name           = var.key_name
 }
 
 module "s3" {

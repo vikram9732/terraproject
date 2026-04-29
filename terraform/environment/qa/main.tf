@@ -1,5 +1,15 @@
+terraform {
+  backend "s3" {
+    bucket         = "clickops-terraform-state-vikram-2026"
+    key            = "qa/terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = "clickops-terraform-locks"
+    encrypt        = true
+  }
+}
+
 provider "aws" {
-  region = "us-east-1"
+  region = "ap-south-1"
 }
 
 module "vpc" {
