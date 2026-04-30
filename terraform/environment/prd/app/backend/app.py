@@ -1,3 +1,24 @@
+import boto3
+import json
+
+def get_secrets():
+    secret_name = os.getenv("SECRET_NAME", "clickops-sm-dev")
+    region_name = os.getenv("AWS_REGION", "ap-south-1")
+
+    client = boto3.client("secretsmanager", region_name=region_name)
+
+    response = client.get_secret_value(SecretId=secret_name)
+    secret = json.loads(response["SecretString"])
+
+    return secret
+
+# Fetch secrets
+secrets = get_secrets()
+
+mongo_uri = secrets.get("MONGO_URL")
+mongo_db_name = secrets.get("MONGO_DB_NAME")
+s3_bucket = secrets.get("S3_BUCKET_NAME")
+aws_region = secrets.get("AWS_REGION", "ap-south-1")
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -28,10 +49,9 @@ try:
     aws_region = secret.get("AWS_REGION", aws_region)
 
 except Exception:
-    mongo_uri = os.getenv("MONGO_URL") or os.getenv("MONGO_URI", "mongodb://mongo-container:27017/")
+    
     db_name = os.getenv("MONGO_DB_NAME", "clickops-db-dev")
-    s3_bucket = os.getenv("S3_BUCKET_NAME")
-
+    
 client = MongoClient(mongo_uri)
 db = client[db_name]
 collection = db["users"]
