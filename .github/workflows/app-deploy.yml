@@ -82,7 +82,7 @@ jobs:
             sleep 15
           done
 
-      - name: Deploy to EC2 via SSH
+            - name: Deploy to EC2 via SSH
         env:
           EC2_USER: ubuntu
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
@@ -98,38 +98,76 @@ jobs:
           sed -i 's/\r$//' ~/.ssh/cicd-key
           chmod 600 ~/.ssh/cicd-key
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/cicd-key $EC2_USER@$EC2_HOST "
-            docker network create app-network || true
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/cicd-key $EC2_USER@$EC2_HOST \
+          "AWS_REGION='$AWS_REGION' \
+          ECR_REGISTRY='$ECR_REGISTRY' \
+          BACKEND_REPO='$BACKEND_REPO' \
+          FRONTEND_REPO='$FRONTEND_REPO' \
+          ENV_NAME='$ENV_NAME' \
+          IMAGE_TAG='$IMAGE_TAG' \
+          SECRET_NAME='$SECRET_NAME' \
+          AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
+          AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
+          bash -s" <<'REMOTE_SCRIPT'
 
-            docker rm -f mongo-container || true
-            docker run -d --name mongo-container --network app-network -p 27017:27017 mongo:6
+          set -e
 
-            AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+          echo "===== ENV CHECK ====="
+          echo "ENV_NAME=$ENV_NAME"
+          echo "IMAGE_TAG=$IMAGE_TAG"
+          echo "SECRET_NAME=$SECRET_NAME"
+          echo "ECR_REGISTRY=$ECR_REGISTRY"
+          echo "BACKEND_REPO=$BACKEND_REPO"
+          echo "FRONTEND_REPO=$FRONTEND_REPO"
 
-            BACKEND_IMAGE=\$ECR_REGISTRY/\$BACKEND_REPO:\$ENV_NAME-\$IMAGE_TAG
-            FRONTEND_IMAGE=\$ECR_REGISTRY/\$FRONTEND_REPO:\$ENV_NAME-\$IMAGE_TAG
+          echo "===== LOGIN TO ECR ====="
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-            docker pull \$BACKEND_IMAGE
-            docker pull \$FRONTEND_IMAGE
+          BACKEND_IMAGE="$ECR_REGISTRY/$BACKEND_REPO:$ENV_NAME-$IMAGE_TAG"
+          FRONTEND_IMAGE="$ECR_REGISTRY/$FRONTEND_REPO:$ENV_NAME-$IMAGE_TAG"
 
-            docker rm -f backend-container || true
-            docker rm -f frontend-container || true
+          echo "BACKEND_IMAGE=$BACKEND_IMAGE"
+          echo "FRONTEND_IMAGE=$FRONTEND_IMAGE"
 
-            docker run -d \
-              --name backend-container \
-              --network app-network \
-              -p 5000:5000 \
-              -e SECRET_NAME=\$SECRET_NAME \
-              -e AWS_REGION=$AWS_REGION \
-              -e AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
-              -e AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
-              \$BACKEND_IMAGE
+          echo "===== CLEAN OLD CONTAINERS ====="
+          docker rm -f backend-container || true
+          docker rm -f frontend-container || true
+          docker rm -f mongo-container || true
 
-            docker run -d \
-              --name frontend-container \
-              --network app-network \
-              -p 3000:80 \
-              \$FRONTEND_IMAGE
+          docker network create app-network || true
 
-            docker ps
-          "
+          echo "===== START MONGO ====="
+          docker run -d \
+            --name mongo-container \
+            --network app-network \
+            mongo:6
+
+          echo "===== PULL IMAGES ====="
+          docker pull "$BACKEND_IMAGE"
+          docker pull "$FRONTEND_IMAGE"
+
+          echo "===== START BACKEND ====="
+          docker run -d \
+            --name backend-container \
+            --network app-network \
+            -p 5000:5000 \
+            -e SECRET_NAME="$SECRET_NAME" \
+            -e AWS_REGION="$AWS_REGION" \
+            -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+            -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+            "$BACKEND_IMAGE"
+
+          echo "===== START FRONTEND ====="
+          docker run -d \
+            --name frontend-container \
+            --network app-network \
+            -p 3000:80 \
+            "$FRONTEND_IMAGE"
+
+          echo "===== FINAL CONTAINERS ====="
+          docker ps -a
+
+          echo "===== BACKEND LOGS ====="
+          docker logs backend-container --tail 30 || true
+
+REMOTE_SCRIPT
