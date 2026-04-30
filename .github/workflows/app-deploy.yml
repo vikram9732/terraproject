@@ -27,18 +27,21 @@ jobs:
             echo "EC2_HOST=${{ secrets.EC2_HOST_DEV }}" >> $GITHUB_ENV
             echo "S3_BUCKET_NAME=clickops-dev-bucket-12345" >> $GITHUB_ENV
             echo "MONGO_DB_NAME=clickops-db-dev" >> $GITHUB_ENV
+            echo "SECRET_NAME=clickops-sm-dev" >> $GITHUB_ENV
 
           elif [ "$BRANCH" = "qa" ]; then
             echo "ENV_NAME=qa" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_HOST_QA }}" >> $GITHUB_ENV
             echo "S3_BUCKET_NAME=clickops-qa-bucket-12345" >> $GITHUB_ENV
             echo "MONGO_DB_NAME=clickops-db-qa" >> $GITHUB_ENV
+            echo "SECRET_NAME=clickops-sm-qa" >> $GITHUB_ENV
 
           elif [ "$BRANCH" = "main" ]; then
             echo "ENV_NAME=prd" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_HOST_PRD }}" >> $GITHUB_ENV
             echo "S3_BUCKET_NAME=clickops-prd-bucket-12345" >> $GITHUB_ENV
             echo "MONGO_DB_NAME=clickops-db-prd" >> $GITHUB_ENV
+            echo "SECRET_NAME=clickops-sm-prd" >> $GITHUB_ENV
           fi
 
       - name: Configure AWS Credentials
@@ -116,10 +119,7 @@ jobs:
               --name backend-container \
               --network app-network \
               -p 5000:5000 \
-              -e MONGO_URL=mongodb://mongo-container:27017/ \
-              -e MONGO_URI=mongodb://mongo-container:27017/ \
-              -e MONGO_DB_NAME=$MONGO_DB_NAME \
-              -e S3_BUCKET_NAME=$S3_BUCKET_NAME \
+              -e SECRET_NAME=$SECRET_NAME \
               -e AWS_REGION=$AWS_REGION \
               -e AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
               -e AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
