@@ -3,107 +3,205 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClickOps Terraform Project-2026</title>
+  <title>ClickOps Student Database</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
+    * {
       margin: 0;
-      padding: 40px;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #6a7dfc, #9b59b6);
     }
 
     .container {
-      max-width: 500px;
-      margin: auto;
-      background: white;
-      padding: 30px;
+      background: #ffffff;
+      width: 90%;
+      max-width: 420px;
+      padding: 30px 25px;
       border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-
-    h1 {
-      font-size: 24px;
-      margin-bottom: 25px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       text-align: center;
     }
 
-    label {
-      display: block;
-      margin-top: 15px;
-      margin-bottom: 6px;
+    h1 {
+      font-size: 20px;
       font-weight: bold;
+      color: #333;
+      margin-bottom: 25px;
+      line-height: 1.4;
     }
 
-    input {
+    .form-group {
+      margin-bottom: 15px;
+      text-align: left;
+    }
+
+    input[type="text"],
+    input[type="number"] {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      outline: none;
+      font-size: 14px;
     }
 
-    .btn-group {
-      margin-top: 20px;
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      border-color: #888;
+    }
+
+    .upload-wrapper {
+      margin: 15px 0;
+    }
+
+    .upload-label {
+      display: inline-block;
+      background-color: #28a745;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+    }
+
+    .upload-label:hover {
+      background-color: #218838;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-name {
+      display: block;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .button-group {
+      margin-top: 15px;
       display: flex;
-      gap: 10px;
+      justify-content: center;
+      gap: 12px;
     }
 
     button {
-      flex: 1;
-      padding: 12px;
       border: none;
-      border-radius: 6px;
+      padding: 10px 18px;
+      border-radius: 4px;
+      font-size: 14px;
       cursor: pointer;
+      color: white;
       font-weight: bold;
     }
 
     .submit-btn {
-      background: #007bff;
-      color: white;
+      background-color: #4c6ef5;
+    }
+
+    .submit-btn:hover {
+      background-color: #3b5bdb;
     }
 
     .cancel-btn {
-      background: #dc3545;
-      color: white;
+      background-color: #e74c3c;
     }
 
-    #response {
+    .cancel-btn:hover {
+      background-color: #c0392b;
+    }
+
+    .message {
       margin-top: 20px;
-      background: #f1f1f1;
-      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      color: green;
+      min-height: 24px;
+    }
+
+    .error {
+      color: red !important;
+    }
+
+    .response-box {
+      margin-top: 15px;
+      text-align: left;
+      background: #f4f4f4;
       border-radius: 6px;
+      padding: 12px;
+      font-size: 13px;
       white-space: pre-wrap;
+      word-wrap: break-word;
+      display: none;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Welcome to ClickOps Terraform Project-2026</h1>
+    <h1>ClickOps Student<br>Database</h1>
 
-    <form id="userForm">
-      <label for="name">Name</label>
-      <input type="text" id="name" name="name" required />
+    <form id="studentForm">
+      <div class="form-group">
+        <input type="text" id="name" name="name" placeholder="Enter your name" required />
+      </div>
 
-      <label for="age">Age</label>
-      <input type="number" id="age" name="age" required />
+      <div class="form-group">
+        <input type="number" id="age" name="age" placeholder="Enter your age" required />
+      </div>
 
-      <label for="picture">Picture</label>
-      <input type="file" id="picture" name="picture" accept="image/*" required />
+      <div class="upload-wrapper">
+        <label for="picture" class="upload-label">Upload Image</label>
+        <input type="file" id="picture" name="picture" accept="image/*" required />
+        <span class="file-name" id="fileName">No file chosen</span>
+      </div>
 
-      <div class="btn-group">
-        <button type="submit" class="submit-btn">SUBMIT</button>
-        <button type="button" class="cancel-btn" onclick="resetForm()">CANCEL</button>
+      <div class="button-group">
+        <button type="submit" class="submit-btn">Submit</button>
+        <button type="button" class="cancel-btn" onclick="resetForm()">Cancel</button>
       </div>
     </form>
 
-    <div id="response">Fill the form and click SUBMIT.</div>
+    <div class="message" id="message"></div>
+    <div class="response-box" id="responseBox"></div>
   </div>
 
   <script>
-    const backendUrl = "http://13.233.108.176:5000";
+    // IMPORTANT:
+    // Keep this exact line format because your GitHub Actions workflow updates this value automatically.
+    const backendUrl = "http://localhost:5000";
 
-    document.getElementById("userForm").addEventListener("submit", async function (e) {
+    const form = document.getElementById("studentForm");
+    const message = document.getElementById("message");
+    const responseBox = document.getElementById("responseBox");
+    const pictureInput = document.getElementById("picture");
+    const fileName = document.getElementById("fileName");
+
+    pictureInput.addEventListener("change", function () {
+      if (pictureInput.files.length > 0) {
+        fileName.textContent = pictureInput.files[0].name;
+      } else {
+        fileName.textContent = "No file chosen";
+      }
+    });
+
+    form.addEventListener("submit", async function (e) {
       e.preventDefault();
+
+      message.textContent = "";
+      message.classList.remove("error");
+      responseBox.style.display = "none";
+      responseBox.textContent = "";
 
       const formData = new FormData();
       formData.append("name", document.getElementById("name").value);
@@ -116,16 +214,33 @@
           body: formData
         });
 
-        const result = await response.json();
-        document.getElementById("response").textContent = JSON.stringify(result, null, 2);
+        const data = await response.json();
+
+        if (response.ok) {
+          message.textContent = "Image Submitted Successfully";
+          responseBox.style.display = "block";
+          responseBox.textContent = JSON.stringify(data, null, 2);
+        } else {
+          message.textContent = data.error || "Something went wrong";
+          message.classList.add("error");
+          responseBox.style.display = "block";
+          responseBox.textContent = JSON.stringify(data, null, 2);
+        }
       } catch (error) {
-        document.getElementById("response").textContent = "Error: " + error.message;
+        message.textContent = "Failed to connect to backend";
+        message.classList.add("error");
+        responseBox.style.display = "block";
+        responseBox.textContent = error.toString();
       }
     });
 
     function resetForm() {
-      document.getElementById("userForm").reset();
-      document.getElementById("response").textContent = "Form cleared.";
+      document.getElementById("studentForm").reset();
+      document.getElementById("fileName").textContent = "No file chosen";
+      document.getElementById("message").textContent = "";
+      document.getElementById("message").classList.remove("error");
+      document.getElementById("responseBox").style.display = "none";
+      document.getElementById("responseBox").textContent = "";
     }
   </script>
 </body>
