@@ -24,18 +24,24 @@ jobs:
 
           if [ "$BRANCH" = "dev" ]; then
             echo "ENV_NAME=dev" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_HOST_DEV }}" >> $GITHUB_ENV
             echo "SECRET_NAME=clickops-sm-dev" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_ID=${{ secrets.EC2_INSTANCE_ID_DEV }}" >> $GITHUB_ENV
+            echo "BACKEND_REPO_ENV=clickops-dev-be" >> $GITHUB_ENV
+            echo "FRONTEND_REPO_ENV=clickops-dev-fe" >> $GITHUB_ENV
 
           elif [ "$BRANCH" = "qa" ]; then
             echo "ENV_NAME=qa" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_HOST_QA }}" >> $GITHUB_ENV
             echo "SECRET_NAME=clickops-sm-qa" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_ID=${{ secrets.EC2_INSTANCE_ID_QA }}" >> $GITHUB_ENV
+            echo "BACKEND_REPO_ENV=clickops-qa-be" >> $GITHUB_ENV
+            echo "FRONTEND_REPO_ENV=clickops-qa-fe" >> $GITHUB_ENV
 
           elif [ "$BRANCH" = "main" ]; then
             echo "ENV_NAME=prd" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_HOST_PRD }}" >> $GITHUB_ENV
             echo "SECRET_NAME=clickops-sm-prd" >> $GITHUB_ENV
+            echo "EC2_INSTANCE_ID=${{ secrets.EC2_INSTANCE_ID_PRD }}" >> $GITHUB_ENV
+            echo "BACKEND_REPO_ENV=clickops-prd-be" >> $GITHUB_ENV
+            echo "FRONTEND_REPO_ENV=clickops-prd-fe" >> $GITHUB_ENV
           fi
 
       - name: Configure AWS Credentials
@@ -51,99 +57,108 @@ jobs:
 
       - name: Set frontend backend URL
         run: |
-          sed -i "s|const backendUrl = .*|const backendUrl = \"http://$EC2_HOST:5000\";|g" ./terraform/environment/prd/app/frontend/index.html
+          if [ "$ENV_NAME" = "dev" ]; then
+            BACKEND_PUBLIC_IP="${{ secrets.EC2_HOST_DEV }}"
+          elif [ "$ENV_NAME" = "qa" ]; then
+            BACKEND_PUBLIC_IP="${{ secrets.EC2_HOST_QA }}"
+          elif [ "$ENV_NAME" = "prd" ]; then
+            BACKEND_PUBLIC_IP="${{ secrets.EC2_HOST_PRD }}"
+          fi
+
+          sed -i "s|const backendUrl = .*|const backendUrl = \"http://$BACKEND_PUBLIC_IP:5000\";|g" ./terraform/environment/prd/app/frontend/index.html
 
       - name: Build backend image
         run: |
-          docker build -t backend:${IMAGE_TAG} ./terraform/environment/prd/app/backend
-          docker tag backend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
+          docker build -t clickops-${ENV_NAME}-be:v1 ./terraform/environment/prd/app/backend
+          docker tag clickops-${ENV_NAME}-be:v1 ${{ secrets.ECR_REGISTRY }}/${BACKEND_REPO_ENV}:v1
 
       - name: Push backend image
         run: |
-          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.BACKEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
+          docker push ${{ secrets.ECR_REGISTRY }}/${BACKEND_REPO_ENV}:v1
 
       - name: Build frontend image
         run: |
-          docker build -t frontend:${IMAGE_TAG} ./terraform/environment/prd/app/frontend
-          docker tag frontend:${IMAGE_TAG} ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${ENV_NAME}-${IMAGE_TAG}
+          docker build -t clickops-${ENV_NAME}-fe:v1 ./terraform/environment/prd/app/frontend
+          docker tag clickops-${ENV_NAME}-fe:v1 ${{ secrets.ECR_REGISTRY }}/${FRONTEND_REPO_ENV}:v1
 
       - name: Push frontend image
         timeout-minutes: 15
         run: |
-          for i in 1 2 3; do
-            docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.FRONTEND_REPO }}:${ENV_NAME}-${IMAGE_TAG} && break
-            echo "Push failed... retrying in 15 seconds..."
-            sleep 15
-          done
+          docker push ${{ secrets.ECR_REGISTRY }}/${FRONTEND_REPO_ENV}:v1
 
-      - name: Deploy to EC2 via SSH
-        env:
-          EC2_USER: ubuntu
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          BACKEND_REPO: ${{ secrets.BACKEND_REPO }}
-          FRONTEND_REPO: ${{ secrets.FRONTEND_REPO }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      - name: Deploy to EC2 using AWS SSM
         run: |
-          mkdir -p ~/.ssh
-          printf "%s\n" "$EC2_SSH_KEY" > ~/.ssh/cicd-key
-          sed -i 's/\r$//' ~/.ssh/cicd-key
-          chmod 600 ~/.ssh/cicd-key
+          BACKEND_IMAGE="${{ secrets.ECR_REGISTRY }}/${BACKEND_REPO_ENV}:v1"
+          FRONTEND_IMAGE="${{ secrets.ECR_REGISTRY }}/${FRONTEND_REPO_ENV}:v1"
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/cicd-key $EC2_USER@$EC2_HOST "
-            set -e
+          echo "Deploying environment: $ENV_NAME"
+          echo "Instance ID: $EC2_INSTANCE_ID"
+          echo "Backend image: $BACKEND_IMAGE"
+          echo "Frontend image: $FRONTEND_IMAGE"
+          echo "Secret name: $SECRET_NAME"
 
-            echo '===== ENV CHECK ====='
-            echo 'ENV_NAME=$ENV_NAME'
-            echo 'IMAGE_TAG=$IMAGE_TAG'
-            echo 'SECRET_NAME=$SECRET_NAME'
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --region "${{ secrets.AWS_REGION }}" \
+            --comment "Deploy ClickOps ${ENV_NAME} application using Docker and AWS SSM" \
+            --parameters commands="[
+              \"set -e\",
+              \"echo ===== STARTING SSM DEPLOYMENT =====\",
+              \"echo Environment: ${ENV_NAME}\",
+              \"echo Secret Name: ${SECRET_NAME}\",
+              \"echo Backend Image: ${BACKEND_IMAGE}\",
+              \"echo Frontend Image: ${FRONTEND_IMAGE}\",
 
-            echo '===== CLEAN OLD CONTAINERS ====='
-            docker rm -f backend-container || true
-            docker rm -f frontend-container || true
-            docker rm -f mongo-container || true
+              \"echo ===== CHECK DOCKER =====\",
+              \"docker --version\",
+              \"docker-compose --version || true\",
 
-            docker network create app-network || true
+              \"echo ===== CLEAN OLD CONTAINERS =====\",
+              \"docker rm -f backend-container || true\",
+              \"docker rm -f frontend-container || true\",
+              \"docker rm -f mongo-container || true\",
 
-            echo '===== START MONGO ====='
-            docker run -d \
-              --name mongo-container \
-              --network app-network \
-              mongo:6
+              \"echo ===== CREATE DOCKER NETWORK =====\",
+              \"docker network create app-network || true\",
 
-            echo '===== LOGIN TO ECR ====='
-            AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+              \"echo ===== START MONGODB =====\",
+              \"docker run -d --name mongo-container --network app-network mongo:6\",
 
-            BACKEND_IMAGE=$ECR_REGISTRY/$BACKEND_REPO:$ENV_NAME-$IMAGE_TAG
-            FRONTEND_IMAGE=$ECR_REGISTRY/$FRONTEND_REPO:$ENV_NAME-$IMAGE_TAG
+              \"echo ===== LOGIN TO ECR =====\",
+              \"aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}\",
 
-            echo '===== PULL IMAGES ====='
-            docker pull \$BACKEND_IMAGE
-            docker pull \$FRONTEND_IMAGE
+              \"echo ===== PULL BACKEND IMAGE =====\",
+              \"docker pull ${BACKEND_IMAGE}\",
 
-            echo '===== START BACKEND ====='
-            docker run -d \
-              --name backend-container \
-              --network app-network \
-              -p 5000:5000 \
-              -e SECRET_NAME=$SECRET_NAME \
-              -e AWS_REGION=$AWS_REGION \
-              -e AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID' \
-              -e AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY' \
-              \$BACKEND_IMAGE
+              \"echo ===== PULL FRONTEND IMAGE =====\",
+              \"docker pull ${FRONTEND_IMAGE}\",
 
-            echo '===== START FRONTEND ====='
-            docker run -d \
-              --name frontend-container \
-              --network app-network \
-              -p 3000:80 \
-              \$FRONTEND_IMAGE
+              \"echo ===== START BACKEND =====\",
+              \"docker run -d --name backend-container --network app-network -p 5000:5000 -e SECRET_NAME=${SECRET_NAME} -e AWS_REGION=${{ secrets.AWS_REGION }} ${BACKEND_IMAGE}\",
 
-            echo '===== FINAL CONTAINERS ====='
-            docker ps -a
+              \"echo ===== START FRONTEND =====\",
+              \"docker run -d --name frontend-container --network app-network -p 3000:80 ${FRONTEND_IMAGE}\",
 
-            echo '===== BACKEND LOGS ====='
-            docker logs backend-container --tail 30 || true
-          "
+              \"echo ===== FINAL CONTAINERS =====\",
+              \"docker ps -a\",
+
+              \"echo ===== BACKEND LOGS =====\",
+              \"docker logs backend-container --tail 30 || true\"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM Command ID: $COMMAND_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --region "${{ secrets.AWS_REGION }}"
+
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --region "${{ secrets.AWS_REGION }}" \
+            --query '{Status:Status, StandardOutputContent:StandardOutputContent, StandardErrorContent:StandardErrorContent}' \
+            --output json
