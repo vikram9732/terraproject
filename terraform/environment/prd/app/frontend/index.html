@@ -4,82 +4,78 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ClickOps Student Database</title>
+
   <style>
     * {
-      margin: 0;
-      padding: 0;
       box-sizing: border-box;
       font-family: Arial, sans-serif;
     }
 
     body {
+      margin: 0;
       min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      background: linear-gradient(135deg, #6a7dfc, #9b59b6);
+      background: linear-gradient(90deg, #6d8df5, #8a55d7);
     }
 
     .container {
+      width: 420px;
       background: #ffffff;
-      width: 90%;
-      max-width: 420px;
-      padding: 30px 25px;
       border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      padding: 35px 30px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
       text-align: center;
     }
 
-    h1 {
-      font-size: 20px;
+    .container h1 {
+      margin: 0 0 30px;
+      font-size: 22px;
       font-weight: bold;
       color: #333;
-      margin-bottom: 25px;
-      line-height: 1.4;
+      line-height: 1.3;
     }
 
     .form-group {
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       text-align: left;
     }
 
-    input[type="text"],
-    input[type="number"] {
+    .form-group input[type="text"],
+    .form-group input[type="number"] {
       width: 100%;
-      padding: 10px 12px;
+      padding: 11px 12px;
       border: 1px solid #ddd;
       border-radius: 4px;
+      font-size: 14px;
       outline: none;
-      font-size: 14px;
     }
 
-    input[type="text"]:focus,
-    input[type="number"]:focus {
-      border-color: #888;
+    .form-group input[type="text"]:focus,
+    .form-group input[type="number"]:focus {
+      border-color: #6d8df5;
     }
 
-    .upload-wrapper {
-      margin: 15px 0;
-    }
-
-    .upload-label {
-      display: inline-block;
-      background-color: #28a745;
-      color: white;
-      padding: 10px 18px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: bold;
-      border: none;
-    }
-
-    .upload-label:hover {
-      background-color: #218838;
-    }
-
-    input[type="file"] {
+    .file-input {
       display: none;
+    }
+
+    .upload-btn {
+      display: inline-block;
+      background-color: #41b36b;
+      color: white;
+      padding: 10px 22px;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      margin-top: 4px;
+      margin-bottom: 8px;
+    }
+
+    .upload-btn:hover {
+      background-color: #34985a;
     }
 
     .file-name {
@@ -87,31 +83,33 @@
       margin-top: 8px;
       font-size: 13px;
       color: #555;
+      min-height: 18px;
     }
 
-    .button-group {
-      margin-top: 15px;
+    .button-row {
+      margin-top: 12px;
       display: flex;
       justify-content: center;
       gap: 12px;
     }
 
-    button {
+    .submit-btn,
+    .cancel-btn {
       border: none;
-      padding: 10px 18px;
+      color: white;
+      padding: 10px 22px;
       border-radius: 4px;
       font-size: 14px;
       cursor: pointer;
-      color: white;
-      font-weight: bold;
+      min-width: 90px;
     }
 
     .submit-btn {
-      background-color: #4c6ef5;
+      background-color: #4f79ff;
     }
 
     .submit-btn:hover {
-      background-color: #3b5bdb;
+      background-color: #3d67eb;
     }
 
     .cancel-btn {
@@ -119,7 +117,7 @@
     }
 
     .cancel-btn:hover {
-      background-color: #c0392b;
+      background-color: #cf3e30;
     }
 
     .message {
@@ -127,23 +125,11 @@
       font-size: 16px;
       font-weight: bold;
       color: green;
-      min-height: 24px;
+      min-height: 22px;
     }
 
     .error {
       color: red !important;
-    }
-
-    .response-box {
-      margin-top: 15px;
-      text-align: left;
-      background: #f4f4f4;
-      border-radius: 6px;
-      padding: 12px;
-      font-size: 13px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      display: none;
     }
   </style>
 </head>
@@ -160,53 +146,69 @@
         <input type="number" id="age" name="age" placeholder="Enter your age" required />
       </div>
 
-      <div class="upload-wrapper">
-        <label for="picture" class="upload-label">Upload Image</label>
-        <input type="file" id="picture" name="picture" accept="image/*" required />
-        <span class="file-name" id="fileName">No file chosen</span>
+      <div class="form-group" style="text-align:center;">
+        <label for="picture" class="upload-btn">Upload Image</label>
+        <input type="file" id="picture" name="picture" class="file-input" accept="image/*" required />
+        <span id="fileName" class="file-name"></span>
       </div>
 
-      <div class="button-group">
+      <div class="button-row">
         <button type="submit" class="submit-btn">Submit</button>
-        <button type="button" class="cancel-btn" onclick="resetForm()">Cancel</button>
+        <button type="button" class="cancel-btn" onclick="clearForm()">Cancel</button>
       </div>
     </form>
 
-    <div class="message" id="message"></div>
-    <div class="response-box" id="responseBox"></div>
+    <div id="message" class="message"></div>
   </div>
 
   <script>
     // IMPORTANT:
-    // Keep this exact line format because your GitHub Actions workflow updates this value automatically.
+    // Keep this line exactly in this format.
+    // Your GitHub Actions workflow changes this automatically.
     const backendUrl = "http://localhost:5000";
 
     const form = document.getElementById("studentForm");
-    const message = document.getElementById("message");
-    const responseBox = document.getElementById("responseBox");
-    const pictureInput = document.getElementById("picture");
+    const fileInput = document.getElementById("picture");
     const fileName = document.getElementById("fileName");
+    const messageBox = document.getElementById("message");
 
-    pictureInput.addEventListener("change", function () {
-      if (pictureInput.files.length > 0) {
-        fileName.textContent = pictureInput.files[0].name;
+    fileInput.addEventListener("change", function () {
+      if (fileInput.files.length > 0) {
+        fileName.textContent = fileInput.files[0].name;
       } else {
-        fileName.textContent = "No file chosen";
+        fileName.textContent = "";
       }
     });
+
+    function clearForm() {
+      document.getElementById("name").value = "";
+      document.getElementById("age").value = "";
+      document.getElementById("picture").value = "";
+      document.getElementById("fileName").textContent = "";
+      messageBox.textContent = "";
+      messageBox.classList.remove("error");
+    }
 
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
 
-      message.textContent = "";
-      message.classList.remove("error");
-      responseBox.style.display = "none";
-      responseBox.textContent = "";
+      messageBox.textContent = "";
+      messageBox.classList.remove("error");
+
+      const name = document.getElementById("name").value;
+      const age = document.getElementById("age").value;
+      const picture = document.getElementById("picture").files[0];
+
+      if (!name || !age || !picture) {
+        messageBox.textContent = "Please fill all fields and upload an image";
+        messageBox.classList.add("error");
+        return;
+      }
 
       const formData = new FormData();
-      formData.append("name", document.getElementById("name").value);
-      formData.append("age", document.getElementById("age").value);
-      formData.append("picture", document.getElementById("picture").files[0]);
+      formData.append("name", name);
+      formData.append("age", age);
+      formData.append("picture", picture);
 
       try {
         const response = await fetch(`${backendUrl}/submit`, {
@@ -214,34 +216,22 @@
           body: formData
         });
 
-        const data = await response.json();
+        const result = await response.json();
 
         if (response.ok) {
-          message.textContent = "Image Submitted Successfully";
-          responseBox.style.display = "block";
-          responseBox.textContent = JSON.stringify(data, null, 2);
+          messageBox.textContent = "Image Submitted Successfully";
+          messageBox.classList.remove("error");
+          form.reset();
+          fileName.textContent = "";
         } else {
-          message.textContent = data.error || "Something went wrong";
-          message.classList.add("error");
-          responseBox.style.display = "block";
-          responseBox.textContent = JSON.stringify(data, null, 2);
+          messageBox.textContent = result.error || "Submission failed";
+          messageBox.classList.add("error");
         }
       } catch (error) {
-        message.textContent = "Failed to connect to backend";
-        message.classList.add("error");
-        responseBox.style.display = "block";
-        responseBox.textContent = error.toString();
+        messageBox.textContent = "Backend connection failed";
+        messageBox.classList.add("error");
       }
     });
-
-    function resetForm() {
-      document.getElementById("studentForm").reset();
-      document.getElementById("fileName").textContent = "No file chosen";
-      document.getElementById("message").textContent = "";
-      document.getElementById("message").classList.remove("error");
-      document.getElementById("responseBox").style.display = "none";
-      document.getElementById("responseBox").textContent = "";
-    }
   </script>
 </body>
 </html>
